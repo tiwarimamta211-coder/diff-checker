@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diff Checker - Compare Code & Text</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.95;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .controls {
+            background: linear-gradient(to right, #f8f9fa, #ffffff);
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .controls label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            color: #555;
+            user-select: none;
+        }
+
+        .controls input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+
+        .btn-merge {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-merge:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .comparison-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            height: 450px;
+        }
+
+        .side {
+            border-right: 2px solid #e9ecef;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .side:last-child {
+            border-right: none;
+        }
+
+        .side-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+
+        .indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .indicator.added { background: #28a745; }
+        .indicator.removed { background: #dc3545; }
+
+        .code-area {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: auto;
+            background: #fafbfc;
+        }
+
+        .code-wrapper {
+            display: flex;
+            min-height: 100%;
+        }
+
+        .line-numbers {
+            background: #f1f3f5;
+            color: #999;
+            padding: 15px 10px;
+            font-size: 0.85rem;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            text-align: right;
+            border-right: 1px solid #e9ecef;
+            user-select: none;
+            min-width: 55px;
+        }
+
+        .code-content {
+            flex: 1;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            white-space: pre;
+        }
+
+        .line {
+            display: block;
+            height: 1.6em;
+            transition: background 0.2s ease;
+        }
+        
+        .line-num-item {
+            height: 1.6em;
+            display: block;
+        }
+
+        .line.added { background: rgba(40, 167, 69, 0.15); }
+        .line.removed { background: rgba(220, 53, 69, 0.15); }
+        .line.empty { background: #f1f3f5; opacity: 0.4; }
+
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .input-box {
+            display: flex;
+            flex-direction: column;
+            border-right: 2px solid #e9ecef;
+        }
+
+        .input-box:last-child {
+            border-right: none;
+        }
+
+        .input-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.95rem;
+        }
+
+        textarea {
+            height: 200px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            border: none;
+            resize: vertical;
+            outline: none;
+            background: #fafbfc;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        textarea:focus {
+            background: #ffffff;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #764ba2;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .merge-result {
+            padding: 20px;
+            background: #f0f7ff;
+            border-top: 1px solid #e9ecef;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .merge-result.show {
+            display: block;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.show { display: flex; }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .modal-content h2 { margin-bottom: 15px; }
+        .modal-content p { color: #666; margin-bottom: 20px; line-height: 1.6; }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-buttons button { flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Diff Checker</h1>
+            <p>Compare and analyze text differences with synchronized viewports</p>
+        </div>
+
+        <div class="main-content">
+            <div class="controls">
+                <label>
+                    <input type="checkbox" id="syntaxHighlight" checked>
+                    Syntax Highlighting
+                </label>
+                <label>
+                    <input type="checkbox" id="ignoreWhitespace">
+                    Ignore Whitespace
+                </label>
+                <label>
+                    <input type="checkbox" id="caseInsensitive">
+                    Case Insensitive
+                </label>
+                <button class="btn-primary" id="compareBtn">Compare</button>
+                <button class="btn-secondary" id="clearBtn">Clear</button>
+                <button class="btn-merge" id="mergeBtn">Merge</button>
+            </div>
+
+            <div class="input-section">
+                <div class="input-box">
+                    <div class="input-header">Original Text</div>
+                    <textarea id="textLeft" placeholder="Original snippet..."></textarea>
+                </div>
+                <div class="input-box">
+                    <div class="input-header">Modified Text</div>
+                    <textarea id="textRight" placeholder="Modified snippet..."></textarea>
+                </div>
+            </div>
+
+            <div class="comparison-container">
+                <div class="side">
+                    <div class="side-header">
+                        <span class="indicator removed"></span>Original View
+                    </div>
+                    <div class="code-area" id="scrollLeft">
+                        <div class="code-wrapper">
+                            <div class="line-numbers" id="lineNumbersLeft"></div>
+                            <div class="code-content" id="codeLeft"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="side">
+                    <div class="side-header">
+                        <span class="indicator added"></span>Modified View
+                    </div>
+                    <div class="code-area" id="scrollRight">
+                        <div class="code-wrapper">
+                            <div class="line-numbers" id="lineNumbersRight"></div>
+                            <div class="code-content" id="codeRight"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats">
+                <div class="stat"><div class="stat-value" id="addedCount">0</div><div class="stat-label">Added Lines</div></div>
+                <div class="stat"><div class="stat-value" id="removedCount">0</div><div class="stat-label">Removed Lines</div></div>
+                <div class="stat"><div class="stat-value" id="similarityScore">100%</div><div class="stat-label">Similarity Rating</div></div>
+            </div>
+
+            <div class="merge-result" id="mergeResult">
+                <pre id="mergeContent"></pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="mergeModal">
+        <div class="modal-content">
+            <h2>Merge Process Complete</h2>
+            <p>The files have been conditionally merged below using standard git-diff flags.</p>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="document.getElementById('mergeModal').classList.remove('show')">Review</button>
+                <button class="btn-primary" onclick="copyMergeResult()">Copy Content</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const textLeft = document.getElementById('textLeft');
+        const textRight = document.getElementById('textRight');
+        const compareBtn = document.getElementById('compareBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const mergeBtn = document.getElementById('mergeBtn');
+        const codeLeft = document.getElementById('codeLeft');
+        const codeRight = document.getElementById('codeRight');
+        const lineNumbersLeft = document.getElementById('lineNumbersLeft');
+        const lineNumbersRight = document.getElementById('lineNumbersRight');
+        const scrollLeft = document.getElementById('scrollLeft');
+        const scrollRight = document.getElementById('scrollRight');
+
+        // Synchronize scrolling side-by-side
+        let isSyncingLeftScroll = false;
+        let isSyncingRightScroll = false;
+        
+        scrollLeft.onscroll = () => {
+            if (!isSyncingLeftScroll) {
+                isSyncingRightScroll = true;
+                scrollRight.scrollTop = scrollLeft.scrollTop;
+                scrollRight.scrollLeft = scrollLeft.scrollLeft;
+            }
+            isSyncingLeftScroll = false;
+        };
+
+        scrollRight.onscroll = () => {
+            if (!isSyncingRightScroll) {
+                isSyncingLeftScroll = true;
+                scrollLeft.scrollTop = scrollRight.scrollTop;
+                scrollLeft.scrollLeft = scrollRight.scrollLeft;
+            }
+            isSyncingRightScroll = false;
+        };
+
+        function cleanString(str) {
+            if (document.getElementById('ignoreWhitespace').checked) str = str.replace(/\s+/g, '').trim();
+            if (document.getElementById('caseInsensitive').checked) str = str.toLowerCase();
+            return str;
+        }
+
+        // Longest Common Subsequence (LCS) Diff Logic
+        function computeDiff(oldLines, newLines) {
+            const M = oldLines.length;
+            const N = newLines.length;
+            const dp = Array(M + 1).fill(0).map(() => Array(N + 1).fill(0));
+
+            for (let i = 1; i <= M; i++) {
+                for (let j = 1; j <= N; j++) {
+                    if (cleanString(oldLines[i - 1]) === cleanString(newLines[j - 1])) {
+                        dp[i][j] = dp[i - 1][j - 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                    }
+                }
+            }
+
+            let i = M, j = N;
+            const result = [];
+
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && cleanString(oldLines[i - 1]) === cleanString(newLines[j - 1])) {
+                    result.unshift({ type: 'match', oldLine: oldLines[i - 1], newLine: newLines[j - 1] });
+                    i--; j--;
+                } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                    result.unshift({ type: 'add', oldLine: null, newLine: newLines[j - 1] });
+                    j--;
+                } else {
+                    result.unshift({ type: 'remove', oldLine: oldLines[i - 1], newLine: null });
+                    i--;
+                }
+            }
+            return result;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function highlightLine(text) {
+            if (!text) return '&nbsp;';
+            if (document.getElementById('syntaxHighlight').checked) {
+                try { return hljs.highlightAuto(text).value; } catch(e) {}
+            }
+            return escapeHtml(text);
+        }
+
+        function compare() {
+            const leftLines = textLeft.value.split('\n');
+            const rightLines = textRight.value.split('\n');
+            const diffs = computeDiff(leftLines, rightLines);
+
+            codeLeft.innerHTML = '';
+            codeRight.innerHTML = '';
+            lineNumbersLeft.innerHTML = '';
+            lineNumbersRight.innerHTML = '';
+
+            let added = 0, removed = 0, matches = 0;
+            let leftIdx = 1, rightIdx = 1;
+
+            diffs.forEach(change => {
+                const lDiv = document.createElement('div');
+                const rDiv = document.createElement('div');
+                const lNum = document.createElement('span');
+                const rNum = document.createElement('span');
+
+                lNum.className = 'line-num-item';
+                rNum.className = 'line-num-item';
+
+                if (change.type === 'match') {
+                    lDiv.className = 'line';
+                    lDiv.innerHTML = highlightLine(change.oldLine);
+                    rDiv.className = 'line';
+                    rDiv.innerHTML = highlightLine(change.newLine);
+                    lNum.textContent = leftIdx++;
+                    rNum.textContent = rightIdx++;
+                    matches++;
+                } else if (change.type === 'add') {
+                    lDiv.className = 'line empty';
+                    lDiv.innerHTML = '&nbsp;';
+                    rDiv.className = 'line added';
+                    rDiv.innerHTML = highlightLine(change.newLine);
+                    lNum.textContent = '-';
+                    rNum.textContent = rightIdx++;
+                    added++;
+                } else if (change.type === 'remove') {
+                    lDiv.className = 'line removed';
+                    lDiv.innerHTML = highlightLine(change.oldLine);
+                    rDiv.className = 'line empty';
+                    rDiv.innerHTML = '&nbsp;';
+                    lNum.textContent = leftIdx++;
+                    rNum.textContent = '-';
+                    removed++;
+                }
+
+                codeLeft.appendChild(lDiv);
+                codeRight.appendChild(rDiv);
+                lineNumbersLeft.appendChild(lNum);
+                lineNumbersRight.appendChild(rNum);
+            });
+
+            document.getElementById('addedCount').textContent = added;
+            document.getElementById('removedCount').textContent = removed;
+            
+            const total = diffs.length;
+            const score = total > 0 ? Math.round((matches / total) * 100) : 100;
+            document.getElementById('similarityScore').textContent = score + '%';
+        }
+
+        function clearAll() {
+            textLeft.value = ''; textRight.value = '';
+            codeLeft.innerHTML = ''; codeRight.innerHTML = '';
+            lineNumbersLeft.innerHTML = ''; lineNumbersRight.innerHTML = '';
+            document.getElementById('mergeResult').classList.remove('show');
+            document.getElementById('addedCount').textContent = '0';
+            document.getElementById('removedCount').textContent = '0';
+            document.getElementById('similarityScore').textContent = '100%';
+        }
+
+        function performMerge() {
+            const leftLines = textLeft.value.split('\n');
+            const rightLines = textRight.value.split('\n');
+            const diffs = computeDiff(leftLines, rightLines);
+            const merged = [];
+
+            diffs.forEach(change => {
+                if (change.type === 'match') merged.push(change.oldLine);
+                else if (change.type === 'add') merged.push('+' + change.newLine);
+                else if (change.type === 'remove') merged.push('-' + change.oldLine);
+            });
+
+            document.getElementById('mergeContent').textContent = merged.join('\n');
+            document.getElementById('mergeResult').classList.add('show');
+            document.getElementById('mergeModal').classList.add('show');
+        }
+
+        function copyMergeResult() {
+            const txt = document.getElementById('mergeContent').textContent;
+            navigator.clipboard.writeText(txt).then(() => {
+                alert('Copied to clipboard!');
+            });
+        }
+
+        compareBtn.addEventListener('click', compare);
+        clearBtn.addEventListener('click', clearAll);
+        mergeBtn.addEventListener('click', performMerge);
+        textLeft.addEventListener('input', compare);
+        textRight.addEventListener('input', compare);
+    </script>
+</body>
+</html>
